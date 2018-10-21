@@ -128,7 +128,7 @@ class Tools
     public static function getCounters($UID)
     {
       $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-      $qb->select('status')->selectAlias($qb->func()->count('1'),'counter')
+      $qb->select('status')->selectAlias($qb->func()->count('status'),'counter')
       ->from('ocdownloader_queue')
       ->where($qb->expr()->eq('uid', $qb->createNamedParameter($UID)))
       ->groupBy('status');
