@@ -125,26 +125,43 @@ class Tools
         return $DLStatus;
     }
 
-    public static function getCounters($DbType, $UID)
+    public static function getCounters($UID)
     {
-        $SQL = 'SELECT(SELECT COUNT(*) FROM `*PREFIX*ocdownloader_queue` WHERE `STATUS` < ? AND `UID` = ?) as `ALL`,'
-            .'(SELECT COUNT(*) FROM `*PREFIX*ocdownloader_queue` WHERE `STATUS` = ? AND `UID` = ?) as `COMPLETES`,'
-            .'(SELECT COUNT(*) FROM `*PREFIX*ocdownloader_queue` WHERE `STATUS` = ? AND `UID` = ?) as `ACTIVES`,'
-            .'(SELECT COUNT(*) FROM `*PREFIX*ocdownloader_queue` WHERE `STATUS` = ? AND `UID` = ?) as `WAITINGS`,'
-            .'(SELECT COUNT(*) FROM `*PREFIX*ocdownloader_queue` WHERE `STATUS` = ? AND `UID` = ?) as `STOPPED`,'
-            .'(SELECT COUNT(*) FROM `*PREFIX*ocdownloader_queue` WHERE `STATUS` = ? AND `UID` = ?) as `REMOVED`';
-        if ($DbType == 1) {
-            $SQL = 'SELECT(SELECT COUNT(*) FROM *PREFIX*ocdownloader_queue WHERE "STATUS" < ? AND "UID" = ?) as "ALL",'
-                .'(SELECT COUNT(*) FROM *PREFIX*ocdownloader_queue WHERE "STATUS" = ? AND "UID" = ?) as "COMPLETES",'
-                .'(SELECT COUNT(*) FROM *PREFIX*ocdownloader_queue WHERE "STATUS" = ? AND "UID" = ?) as "ACTIVES",'
-                .'(SELECT COUNT(*) FROM *PREFIX*ocdownloader_queue WHERE "STATUS" = ? AND "UID" = ?) as "WAITINGS",'
-                .'(SELECT COUNT(*) FROM *PREFIX*ocdownloader_queue WHERE "STATUS" = ? AND "UID" = ?) as "STOPPED",'
-                .'(SELECT COUNT(*) FROM *PREFIX*ocdownloader_queue WHERE "STATUS" = ? AND "UID" = ?) as "REMOVED"';
-        }
-        $Query = \OCP\DB::prepare($SQL);
-        $Request = $Query->execute(array(5, $UID, 0, $UID, 1, $UID, 2, $UID, 3, $UID, 4, $UID));
+      $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+      $qb->select('status')->selectAlias($qb->func()->count('1'),'counter')
+      ->from('ocdownloader_queue')
+      ->where($qb->expr()->eq('uid', $qb->createNamedParameter($UID)))
+      ->groupBy('status');
+      $result = $qb->execute();
+      $downloads = [
+            'ALL' => 0,
+            'COMPLETES' => 0,
+            'ACTIVES' => 0,
+            'WAITINGS' => 0,
+            'STOPPED' => 0,
+            'REMOVED' => 0,
+      ];
 
-        return $Request->fetch();
+        while ($row = $result->fetch()) {
+            if ($row['status'] == 0) {
+                 $downloads['ALL'] += $row['counter'];
+                 $downloads['COMPLETES'] = $row['counter'];
+            } else if ($row['status'] == 1) {
+                 $downloads['ALL'] += $row['counter'];
+                 $downloads['ACTIVES'] = $row['counter'];
+            } else if ($row['status'] == 2) {
+                 $downloads['ALL'] += $row['counter'];
+                 $downloads['WAITINGS'] = $row['counter'];
+            } else if ($row['status'] == 3) {
+                 $downloads['ALL'] += $row['counter'];
+                 $downloads['STOPPED'] = $row['counter'];
+            } else if ($row['status'] == 4) {
+                 $downloads['ALL'] += $row['counter'];
+                 $downloads['REMOVED'] = $row['counter'];
+            }
+        }
+        $result->closeCursor();
+        return $downloads;
     }
 
     public static function startsWith($Haystack, $Needle)
