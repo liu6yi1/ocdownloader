@@ -83,7 +83,7 @@ class HttpDownloader extends Controller
     public function add()
     {
         header( 'Content-Type: application/json; charset=utf-8');
-
+		
         if (isset($_POST['FILE']) && strlen($_POST['FILE']) > 0 && Tools::checkURL($_POST['FILE'])
             && isset($_POST['OPTIONS'])) {
             try {
@@ -141,10 +141,9 @@ class HttpDownloader extends Controller
                     ?Aria2::addUri(array($_POST['FILE']), array('Params' => $OPTIONS))
                     : CURL::addUri($_POST['FILE'], $OPTIONS)
                 );
-
                 if (isset($AddURI['result']) && !is_null($AddURI['result'])) {
                   $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                    $qb->insert('ocdownloader_queue')
+                    $qb->insert('*PREFIX*ocdownloader_queue')
                         ->values([
                             'UID' => $qb->createNamedParameter($this->CurrentUID),
                             'GID' => $qb->createNamedParameter($AddURI['result']),

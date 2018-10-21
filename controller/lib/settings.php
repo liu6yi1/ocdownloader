@@ -69,21 +69,29 @@ class Settings
 
     public function getValue()
     {
+      if (!is_null($this->Key)) {
         if (!is_null($this->UID)) {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
           $qb->select('VAL')->from('ocdownloader_'.$this->Table.'settings')
               ->where($qb->expr()->eq('KEY',$qb->createNamedParameter($this->Key)))
               ->andwhere($qb->expr()->eq('UID',$qb->createNamedParameter($this->UID)))
               ->setMaxResults('1');
-          return $Request = $qb->execute();
+          $Result = $qb->execute();
 
         } else {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
           $qb->select('VAL')->from('ocdownloader_'.$this->Table.'settings')
               ->where($qb->expr()->eq('KEY',$qb->createNamedParameter($this->Key)))
               ->setMaxResults('1');
-          return $Request = $qb->execute();
+          $Result = $qb->execute();
         }
+
+        if (!is_null($Result) && $Result->rowCount() == 1) {
+            return $Result->fetch();
+        }
+      }
+
+      return null;
 
     }
 
@@ -91,15 +99,17 @@ class Settings
     {
         if (!is_null($this->UID)) {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-          $qb->select('VAL')->from('ocdownloader_'.$this->Table.'settings')
+          $qb->select('KEY', 'VAL')->from('ocdownloader_'.$this->Table.'settings')
               ->where($qb->expr()->eq('KEY',$qb->createNamedParameter($this->Key)))
-              ->andwhere($qb->expr()->eq('UID',$qb->createNamedParameter($this->UID)));
+              ->andwhere($qb->expr()->eq('UID',$qb->createNamedParameter($this->UID)))
+              ->setMaxResults('1');
           return $Request = $qb->execute();
 
         } else {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-          $qb->select('VAL')->from('ocdownloader_'.$this->Table.'settings')
-              ->where($qb->expr()->eq('KEY',$qb->createNamedParameter($this->Key)));
+          $qb->select('KEY', 'VAL')->from('ocdownloader_'.$this->Table.'settings')
+              ->where($qb->expr()->eq('KEY',$qb->createNamedParameter($this->Key)))
+              ->setMaxResults('1');
           return $Request = $qb->execute();
         }
 
@@ -109,7 +119,7 @@ class Settings
     {
         if (!is_null($this->UID)) {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-          $qb->update('ocdownloader_'.$this->Table.'settings')
+          $qb->update('*PREFIX*ocdownloader_'.$this->Table.'settings')
               ->set('VAL', $qb->createNamedParameter($Value))
               ->where($qb->expr()->eq('KEY', $qb->createNamedParameter($this->Key)))
               ->andwhere($qb->expr()->eq('UID', $qb->createNamedParameter($this->UID)));
@@ -117,7 +127,7 @@ class Settings
 
         } else {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-          $qb->update('ocdownloader_'.$this->Table.'settings')
+          $qb->update('*PREFIX*ocdownloader_'.$this->Table.'settings')
               ->set('VAL', $qb->createNamedParameter($Value))
               ->where($qb->expr()->eq('KEY', $qb->createNamedParameter($this->Key)));
           $qb->execute();
@@ -128,7 +138,7 @@ class Settings
     {
         if (!is_null($this->UID)) {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-            $qb->insert('ocdownloader_'.$this->Table.'settings')
+            $qb->insert('*PREFIX*ocdownloader_'.$this->Table.'settings')
                 ->values([
                     'KEY' => $qb->createNamedParameter($this->Key),
                     'VAL' => $qb->createNamedParameter($Value),
@@ -138,7 +148,7 @@ class Settings
 
         } else {
           $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-            $qb->insert('ocdownloader_'.$this->Table.'settings')
+            $qb->insert('*PREFIX*ocdownloader_'.$this->Table.'settings')
                 ->values([
                   'KEY' => $qb->createNamedParameter($this->Key),
                   'VAL' => $qb->createNamedParameter($Value),

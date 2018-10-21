@@ -59,85 +59,55 @@ class Queue extends Controller
 
         try {
             if (isset($_POST['VIEW']) && strlen(trim($_POST['VIEW'])) > 0) {
-                $Params = array($this->CurrentUID);
-                switch ($_POST['VIEW']) {
-                    case 'completes':
-                        $StatusReq = '(?)';
-                        $Params[] = 0;
-                        $IsCleanedReq = '(?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        break;
-                    case 'removed':
-                        $StatusReq = '(?)';
-                        $Params[] = 4;
-                        $IsCleanedReq = '(?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        break;
-                    case 'actives':
-                        $StatusReq = '(?)';
-                        $Params[] = 1;
-                        $IsCleanedReq = '(?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        break;
-                    case 'stopped':
-                        $StatusReq = '(?)';
-                        $Params[] = 3;
-                        $IsCleanedReq = '(?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        break;
-                    case 'waitings':
-                        $StatusReq = '(?)';
-                        $Params[] = 2;
-                        $IsCleanedReq = '(?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        break;
-                    case 'all':
-                        $StatusReq = '(?, ?, ?, ?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        $Params[] = 2;
-                        $Params[] = 3;
-                        $Params[] = 4;
-                        $IsCleanedReq = '(?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        break;
-                    default: // add view
-                        $StatusReq = '(?, ?, ?, ?)';
-                        $Params[] = 0;
-                        $Params[] = 1;
-                        $Params[] = 2;
-                        $Params[] = 3; // STATUS
-                        $IsCleanedReq = '(?)';
-                        $Params[] = 0; // IS_CLEANED
-                        break;
-                }
 
-                $SQL = 'SELECT * FROM `*PREFIX*ocdownloader_queue` WHERE `UID` = ? AND `STATUS` IN '
-                . $StatusReq . ' AND `IS_CLEANED` IN ' . $IsCleanedReq . ' ORDER BY `TIMESTAMP` ASC';
+              $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+              $qb->select('uid','gid','filename','protocol','status','is_cleaned','timestamp')
+              ->from('ocdownloader_queue')
+              ->where($qb->expr()->eq('uid', $qb->createNamedParameter($this->CurrentUID)))
+              ->orderBy('timestamp', 'asc');
 
-                if ($this->DbType == 1) {
-                    $SQL = 'SELECT * FROM *PREFIX*ocdownloader_queue WHERE "UID" = ? AND "STATUS" IN '
-                    . $StatusReq . ' AND "IS_CLEANED" IN ' . $IsCleanedReq . ' ORDER BY "TIMESTAMP" ASC';
-                }
-                $Query = \OCP\DB::prepare($SQL);
-                $Request = $Query->execute($Params);
+              switch ($_POST['VIEW']) {
+      					case 'completes':
+      						$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(0)))
+      							->andWhere($qb->expr()->in('is_cleaned', $qb->createNamedParameter([0, 1], $qb::PARAM_INT_ARRAY)));
+      						break;
+      					case 'removed':
+      						$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(4)))
+      							->andWhere($qb->expr()->in('is_cleaned', $qb->createNamedParameter([0, 1], $qb::PARAM_INT_ARRAY)));
+      						break;
+      					case 'actives':
+      						$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(1)))
+      							->andWhere($qb->expr()->in('is_cleaned', $qb->createNamedParameter([0, 1], $qb::PARAM_INT_ARRAY)));
+      						break;
+      					case 'stopped':
+      						$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(3)))
+      							->andWhere($qb->expr()->in('is_cleaned', $qb->createNamedParameter([0, 1], $qb::PARAM_INT_ARRAY)));
+      						break;
+      					case 'waitings':
+      						$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(2)))
+      							->andWhere($qb->expr()->in('is_cleaned', $qb->createNamedParameter([0, 1], $qb::PARAM_INT_ARRAY)));
+      						break;
+      					case 'all':
+      					  $qb->andWhere($qb->expr()->in('status', $qb->createNamedParameter([0,1,2,3,4],$qb::PARAM_INT_ARRAY)))
+      					    ->andWhere($qb->expr()->in('is_cleaned', $qb->createNamedParameter([0, 1], $qb::PARAM_INT_ARRAY)));
+      						break;
+      					default: // add view
+      						$qb->andWhere($qb->expr()->lte('status', $qb->createNamedParameter(3)))
+      							->andWhere($qb->expr()->eq('is_cleaned', $qb->createNamedParameter(0)));
+      						break;
+      				}
+      				$Request = $qb->execute();
 
-                $Queue = [];
-                $DownloadUpdated = false;
-                while ($Row = $Request->fetch()) {
+      				$Queue = [];
+      				$DownloadUpdated = false;
+      				while ($Row = $Request->fetch()) {
                     $Status =($this->WhichDownloader == 0
                         ?Aria2::tellStatus($Row['GID']):CURL::tellStatus($Row['GID']));
                     $DLStatus = 5; // Error
-
                     if (!is_null($Status)) {
                         if (!isset($Status['error'])) {
                             $Progress = 0;
+
                             if ($Status['result']['totalLength'] > 0) {
                                 $Progress = $Status['result']['completedLength'] / $Status['result']['totalLength'];
                             }
@@ -183,7 +153,7 @@ class Queue extends Controller
 
                             if ($Row['STATUS'] != $DLStatus) {
                               $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                              $qb->update('ocdownloader_queue')
+                              $qb->update('*PREFIX*ocdownloader_queue')
                                 ->set('STATUS', $qb->createNamedParameter($DLStatus))
                                 ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
                                 ->andwhere($qb->expr()->eq('GID', $qb->createNamedParameter($Row['GID'])))
@@ -234,7 +204,7 @@ class Queue extends Controller
                     array(
                         'ERROR' => false,
                         'QUEUE' => $Queue,
-                        'COUNTER' => Tools::getCounters($this->DbType, $this->CurrentUID)
+                        'COUNTER' => Tools::getCounters($this->CurrentUID)
                     )
                 );
             }
@@ -253,7 +223,7 @@ class Queue extends Controller
 
         try {
             return new JSONResponse(
-                array('ERROR' => false, 'COUNTER' => Tools::getCounters($this->DbType, $this->CurrentUID))
+                array('ERROR' => false, 'COUNTER' => Tools::getCounters($this->CurrentUID))
             );
         } catch (Exception $E) {
             return new JSONResponse(array('ERROR' => true, 'MESSAGE' => $E->getMessage()));
@@ -282,7 +252,7 @@ class Queue extends Controller
 
                     if (strcmp($Pause['result'], $_POST['GID']) == 0) {
                       $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                      $qb->update('ocdownloader_queue')
+                      $qb->update('*PREFIX*ocdownloader_queue')
                         ->set('STATUS', $qb->createNamedParameter(3))
                         ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
                         ->andwhere($qb->expr()->eq('GID', $qb->createNamedParameter($_POST['GID'])));
@@ -330,7 +300,7 @@ class Queue extends Controller
 
                     if (strcmp($UnPause['result'], $_POST['GID']) == 0) {
                         $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                        $qb->update('ocdownloader_queue')
+                        $qb->update('*PREFIX*ocdownloader_queue')
                           ->set('STATUS', $qb->createNamedParameter(1))
                           ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
                           ->andwhere($qb->expr()->eq('GID', $qb->createNamedParameter($_POST['GID'])));
@@ -370,7 +340,7 @@ class Queue extends Controller
         try {
             if (isset($_POST['GID']) && strlen(trim($_POST['GID'])) > 0) {
               $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-              $qb->update('ocdownloader_queue')
+              $qb->update('*PREFIX*ocdownloader_queue')
                 ->set('IS_CLEANED', $qb->createNamedParameter(1))
                 ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
                 ->andwhere($qb->expr()->eq('GID', $qb->createNamedParameter($_POST['GID'])));
@@ -401,7 +371,7 @@ class Queue extends Controller
 
                 foreach ($_POST['GIDS'] as $GID) {
                     $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                    $qb->update('ocdownloader_queue')
+                    $qb->update('*PREFIX*ocdownloader_queue')
                       ->set('IS_CLEANED', $qb->createNamedParameter(1))
                       ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
                       ->andwhere($qb->expr()->eq('GID', $qb->createNamedParameter($GID)));
@@ -462,7 +432,7 @@ class Queue extends Controller
 
                 if (!is_null($Remove) && strcmp($Remove['result'], $_POST['GID']) == 0) {
                     $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                    $qb->update('ocdownloader_queue')
+                    $qb->update('*PREFIX*ocdownloader_queue')
                         ->set('STATUS', $qb->createNamedParameter(4))
                         ->set('IS_CLEANED', $qb->createNamedParameter(1))
                         ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
@@ -514,7 +484,7 @@ class Queue extends Controller
 
                     if (!is_null($Remove) && strcmp($Remove['result'], $GID) == 0) {
                         $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                        $qb->update('ocdownloader_queue')
+                        $qb->update('*PREFIX*ocdownloader_queue')
                             ->set('STATUS', $qb->createNamedParameter(4))
                             ->set('IS_CLEANED', $qb->createNamedParameter(1))
                             ->where($qb->expr()->eq('UID', $qb->createNamedParameter($this->CurrentUID)))
@@ -570,7 +540,7 @@ class Queue extends Controller
                 }
 
                 $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                $qb->delete()->from('ocdownloader_queue')
+                $qb->delete()->from('*PREFIX*ocdownloader_queue')
                     ->where($qb->expr()->eq('UID',$qb->createNamedParameter($this->CurrentUID)))
                     ->andwhere($qb->expr()->eq('GID',$qb->createNamedParameter($_POST['GID'])));
                 $Request = $qb->execute();
@@ -613,7 +583,7 @@ class Queue extends Controller
                     }
 
                     $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-                    $qb->delete()->from('ocdownloader_queue')
+                    $qb->delete()->from('*PREFIX*ocdownloader_queue')
                         ->where($qb->expr()->eq('UID',$qb->createNamedParameter($this->CurrentUID)))
                         ->andwhere($qb->expr()->eq('GID',$qb->createNamedParameter($GID)));
                     $Request = $qb->execute();
